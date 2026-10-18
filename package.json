@@ -1,0 +1,22 @@
+{
+  "name": "piano-rush",
+  "version": "1.0.0",
+  "description": "Piano Rush \u2014 tap-the-tiles rhythm game",
+  "main": "index.js",
+  "scripts": {
+    "sync": "cap sync android",
+    "open": "cap open android",
+    "build:aab": "cap sync android && cd android && ./gradlew bundleRelease",
+    "build:apk": "cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3"
+  },
+  "private": true
+}

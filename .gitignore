@@ -1,0 +1,16 @@
+node_modules/
+.DS_Store
+
+# Android build output
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+android/app/release/
+
+# NEVER commit signing material
+*.jks
+*.keystore
+keystore.properties
+android/keystore.properties
