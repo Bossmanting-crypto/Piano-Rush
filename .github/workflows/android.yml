@@ -1,13 +1,8 @@
 name: Build Android App Bundle
 
-# Builds a signed .aab you can upload straight to Play Console.
-# Required repository secrets (Settings → Secrets and variables → Actions):
-#   KEYSTORE_BASE64      base64 of your upload-keystore.jks
-#   KEYSTORE_PASSWORD    the store password
-#   KEY_ALIAS            the key alias (e.g. upload)
-#   KEY_PASSWORD         the key password
-# Without those secrets the job still runs and produces an UNSIGNED bundle,
-# which is useful for checking the build compiles.
+# Builds a signed .aab for Play Console.
+# Secrets: KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+# Without them the build still runs and produces an unsigned bundle.
 
 on:
   push:
@@ -15,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       versionCode:
-        description: 'versionCode to build (must be higher than the last upload)'
+        description: 'versionCode (must exceed the last upload)'
         required: false
 
 jobs:
@@ -39,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Copy web assets into the Android project
+      - name: Sync web assets
         run: npx cap sync android
 
       - name: Bump versionCode
@@ -71,6 +66,6 @@ jobs:
           path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
 
-      - name: Clean up signing material
+      - name: Clean up signing files
         if: always()
         run: rm -f android/upload-keystore.jks android/keystore.properties

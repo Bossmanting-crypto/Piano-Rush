@@ -759,38 +759,25 @@ function customTrackToSong(t){
    STORE
 ═══════════════════════════════════════════ */
 /* ═══════════════════════════════════════════
-   STORE + BILLING
-
-   Two ways to unlock a song pack:
-     1. Notes earned by playing (free path — no money involved)
-     2. A one-time purchase through the store's own billing
-
-   There is deliberately NO way to buy Notes with money. Selling a
-   virtual currency means you owe players a balance: it needs a server,
-   a restore path, refund handling and a shutdown plan. Selling the pack
-   itself is a single non-consumable product the store already tracks
-   for you, which is simpler and survives a reinstall.
-
-   Real payments are NOT wired up in this file, and cannot be from
-   inside a web page. Billing.provider stays null until the Android
-   wrapper supplies one, and every buy button reports honestly that
-   purchases are unavailable rather than silently granting anything.
-   See BILLING.md for the two integration options.
+   STORE + BILLING — packs unlock with earned notes
+   or a one-time purchase. Notes are never sold.
+   provider stays null until a wrapper supplies one.
+   Setup: BILLING.md
 ═══════════════════════════════════════════ */
 const Billing={
   provider:null,       // 'digital-goods' | 'bridge' | null
-  svc:null,            // DigitalGoodsService, when running as a Trusted Web Activity
-  prices:{},           // sku -> localised price string from the store ("KSh 250", "$1.99"…)
+  svc:null,            // DigitalGoodsService (TWA only)
+  prices:{},           // sku -> localised price string
   SKU:{classics:'pack_classics',masters:'pack_masters',pop:'pack_pop'},
 
   async init(){
     try{
-      // Option A: native wrapper (Capacitor / custom Android bridge) injects this
+      // Capacitor / native bridge
       if(window.AndroidBilling&&typeof window.AndroidBilling.purchase==='function'){
         this.provider='bridge';
         this.prices=JSON.parse(window.AndroidBilling.getPrices?.()||'{}');
       }
-      // Option B: Trusted Web Activity — Play Billing via the Digital Goods API
+      // TWA — Play Billing via Digital Goods API
       else if('getDigitalGoodsService' in window){
         this.svc=await window.getDigitalGoodsService('https://play.google.com/billing');
         const skus=Object.values(this.SKU);
@@ -823,12 +810,9 @@ const Billing={
     return this.verifyAndGrant(packId,{sku,token});
   },
 
-  /* ⚠ SERVER STEP — do not skip before launch.
-     Send {sku, token} to your backend, call the Play Developer API
-     purchases.products.get to confirm the purchase is real and not
-     already consumed, then acknowledge it within 3 days or Play
-     refunds the player automatically. Granting on the client alone
-     can be faked by anyone with a rooted phone. */
+  /* TODO before launch: verify {sku, token} server-side via
+     purchases.products.get, then acknowledge within 3 days
+     or Play auto-refunds. Client-only grants can be faked. */
   async verifyAndGrant(packId,purchase){
     // const ok = await fetch(API+'/verify',{method:'POST',body:JSON.stringify(purchase)}).then(r=>r.json());
     // if(!ok.valid) throw new Error('verification failed');
@@ -868,7 +852,7 @@ function unlockPack(id,how){
   persist();refreshHome();
 }
 
-/* Small in-game dialog — replaces alert()/confirm(), which look broken in a WebView */
+/* In-game dialog — alert()/confirm() look broken in a WebView */
 function dialog({title,msg,ok,cancel,onOk}){
   const bg=$('dlgBg');
   $('dlgT').textContent=title;$('dlgM').textContent=msg;
@@ -989,9 +973,8 @@ function buildField(){
 }
 
 /* ═══════════════════════════════════════════
-   FX TICKER — one shared rAF for stars + aurora.
-   Runs while playing, lingers briefly after game over / pause,
-   then sleeps so menus don't drain the battery.
+   FX TICKER — shared rAF for stars + aurora.
+   Lingers after game over, then sleeps on menus.
 ═══════════════════════════════════════════ */
 const REDUCED_MOTION=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 const FX_DPR=Math.min(window.devicePixelRatio||1,2);
@@ -1039,16 +1022,11 @@ function drawStars(dt){
   }
 }
 
-/* ── REACTIVE AURORA ──────────────────────────────────────────────
-   Three sine layers ride on top of a 1-D spring "water surface".
-   Input drives the surface:
-     • tap hit        → upward splash at that lane that ripples outward
-     • hold           → sustained swell + light column while held
-     • combo          → overall amplitude, speed and brightness rise
-     • multiplier up  → full-width surge
-     • miss/wrong tap → dip, red tint and shudder, then the sea calms
-     • track complete → celebratory surge
-   ──────────────────────────────────────────────────────────────── */
+/* ── REACTIVE AURORA ──────────────────────────────────────
+   Three sine layers over a 1-D spring surface.
+   hit = splash, hold = swell, combo = amplitude + speed,
+   miss = dip + red shudder.
+   ──────────────────────────────────────────────────────── */
 const AUR={cvs:null,ctx:null,w:0,h:220,N:56,hgt:null,vel:null,acc:0,
   energy:0,shock:0,glow:0,time:0,holds:{},particles:[],pulses:[],ys:null,spawnAcc:0};
 AUR.hgt=new Float32Array(AUR.N);AUR.vel=new Float32Array(AUR.N);
@@ -1119,7 +1097,7 @@ function aurFail(lane){                       // miss / wrong tap / early releas
     aurImpulse(lane,-520,2);
     AUR.pulses.push({x:AUR.w/LANES*(lane+.5),r:4,life:1,rgb:FAIL_RGB});
   }else for(let l=0;l<LANES;l++)aurImpulse(l,-260,3);
-  fxWake(1.6); // keep animating so the collapse is visible behind the game-over screen
+  fxWake(1.6); // keep animating behind the game-over screen
 }
 function aurCelebrate(){aurSurge();for(let l=0;l<LANES;l++)aurImpulse(l,300,3);fxWake(2.5);}
 
@@ -1130,7 +1108,7 @@ function stepAurora(dt){
   AUR.shock=Math.max(0,AUR.shock-dt*1.1);
   AUR.glow=Math.max(0,AUR.glow-dt*1.4);
   AUR.time+=dt;
-  // fixed-step spring simulation (stable + identical on 60/90/120 Hz screens)
+  // fixed-step spring sim — identical on 60/90/120 Hz screens
   AUR.acc+=dt;
   const N=AUR.N,h=AUR.hgt,v=AUR.vel;
   while(AUR.acc>=AUR_STEP){
@@ -1200,7 +1178,7 @@ function drawAurora(){
     const g=c.createLinearGradient(0,base-amp*1.5-AUR_MAXH*w.k,0,H);
     g.addColorStop(0,`rgba(${rgb},0)`);g.addColorStop(.5,`rgba(${rgb},${a*.5})`);g.addColorStop(1,`rgba(${rgb},${Math.min(1,a)})`);
     c.fillStyle=g;c.fill();
-    // crest: wide faint pass + thin bright pass (cheaper than shadowBlur on Android)
+    // crest: wide faint pass + thin bright pass, cheaper than shadowBlur
     c.beginPath();
     for(let i=0;i<n;i++){const x=Math.min(W,i*3);i?c.lineTo(x,ys[i]):c.moveTo(x,ys[i]);}
     c.globalCompositeOperation='lighter';
@@ -1399,7 +1377,6 @@ function handleLaneDown(laneIndex,clientX,clientY){
   const localY=clientY-laneRect.top,localX=clientX-laneRect.left;
   const leadingY=best?(best.isHold?(best.y+best.h):best.y):null;
 
-  // window spans the tile's full body (top..bottom) plus a little forgiveness
   if(best&&leadingY!==null&&localY>=best.y-10&&localY<=best.y+best.h+30){
     if(best.isHold){
       best.holdActive=true;best.el.classList.add('hold-active');
@@ -1488,7 +1465,7 @@ function resumeGame(){
   lastTime=null;rafId=requestAnimationFrame(loop);fxWake();
 }
 
-const pointerLane={}; // pointerId -> lane it pressed, so sliding a finger can't orphan a hold
+const pointerLane={}; // pointerId -> lane, so a sliding finger can't orphan a hold
 field.addEventListener('pointerdown',(e)=>{
   if(!running||paused)return;
   const rect=field.getBoundingClientRect();
@@ -1577,9 +1554,8 @@ async function buildSavedList(){
 
 
 /* ═══════════════════════════════════════════
-   REWARDS — daily streak, daily missions, milestones.
-   All payouts are Notes, so regular play earns its way
-   toward song packs without anyone having to spend money.
+   REWARDS — daily streak, missions, milestones.
+   All payouts in notes.
 ═══════════════════════════════════════════ */
 const STREAK_REWARDS=[5,8,12,15,20,25,50];   // day 1..7, then the cycle repeats
 const MISSION_POOL=[
@@ -1733,10 +1709,8 @@ buildField();ensureRewardState();persist();refreshHome();showScr('home');
 openDB().then(()=>dbAll().then(t=>{customTracks=t;})).catch(()=>{});
 Billing.init().catch(()=>{});
 
-/* ── Native bridge ──────────────────────────────────────────────
-   The Android wrapper talks to the game only through this object,
-   so the game stays a self-contained web page that also runs in a
-   plain browser. onHit / onFail are set by the wrapper for haptics. */
+/* ── Native bridge — the only surface the Android wrapper
+   touches, so this stays a standalone web page. ── */
 window.PR={
   onHit:null, onFail:null,
   get playing(){return running&&!paused;},
@@ -1752,7 +1726,7 @@ window.PR={
 })();
 </script>
 
-<!-- ═══ ANDROID NATIVE INTEGRATION (added by the Capacitor wrapper) ═══ -->
+<!-- ═══ ANDROID ═══ -->
 <style>
   html,body{overscroll-behavior:none;-webkit-user-select:none;user-select:none;
             -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
@@ -1761,30 +1735,27 @@ window.PR={
 (function(){
   var PR = window.PR; if(!PR) return;
 
-  /* Haptics — a short tick on each hit is the biggest "feels native" win.
-     Stored preference so a settings toggle can switch it off later. */
   var on = localStorage.getItem('pr_haptics') !== 'off';
   function buzz(ms){ if(on && navigator.vibrate) try{ navigator.vibrate(ms); }catch(e){} }
   PR.onHit  = function(){ buzz(12); };
   PR.onFail = function(){ buzz(55); };
 
   var App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
-  if (!App) return;   // running in a plain browser
+  if (!App) return;
 
-  /* Android back / back-gesture. Without this, back kills the app mid-run. */
+  // back / back-gesture: pause mid-run, never kill the app
   App.addListener('backButton', function(){
     try {
       var dlg = document.getElementById('dlgBg');
       if (dlg && !dlg.classList.contains('hidden')) { document.getElementById('dlgCancel').click(); return; }
       var scr = PR.screen;
-      if (scr === 'pause')  { PR.resume(); return; }
-      if (scr === 'game')   { PR.pause();  return; }
-      if (scr !== 'home')   { PR.home();   return; }
-      App.minimizeApp();    // on the home screen: background it, never kill it
+      if (scr === 'pause') { PR.resume(); return; }
+      if (scr === 'game')  { PR.pause();  return; }
+      if (scr !== 'home')  { PR.home();   return; }
+      App.minimizeApp();
     } catch(e) { App.minimizeApp(); }
   });
 
-  /* Pause when Android backgrounds the app (call, notification, recents) */
   App.addListener('appStateChange', function(st){ if(!st.isActive) PR.pause(); });
 })();
 </script>
