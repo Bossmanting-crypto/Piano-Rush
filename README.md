@@ -33,11 +33,12 @@ npm run sync
 ## Signing key
 
 ```bash
-keytool -genkey -v -keystore upload-keystore.jks \
-  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+./make-keystore.sh
 ```
 
-Move the `.jks` into `android/` and create `android/keystore.properties`:
+Creates `android/upload-keystore.jks` and prints the base64 for CI. Needs
+`keytool`, which ships with any JDK and with Android Studio. Then create
+`android/keystore.properties`:
 
 ```properties
 storeFile=upload-keystore.jks
@@ -74,7 +75,9 @@ repository secrets:
 | `KEY_ALIAS` | `upload` |
 | `KEY_PASSWORD` | key password |
 
-Run from the Actions tab, download the `.aab` artifact.
+Run from the Actions tab. Two artifacts are produced: `piano-rush-aab`
+(upload this to Play) and `piano-rush-apk` (a debug APK to sideload for a
+quick look on a phone). The run log says whether the bundle came out signed.
 
 ## Updates
 

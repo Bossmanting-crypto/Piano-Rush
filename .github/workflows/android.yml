@@ -1,8 +1,10 @@
 name: Build Android App Bundle
 
-# Builds a signed .aab for Play Console.
+# Produces two artifacts:
+#   piano-rush-aab  -> app-release.aab, the file Play Console accepts
+#   piano-rush-apk  -> app-debug.apk, sideload to a phone for a quick look
 # Secrets: KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
-# Without them the build still runs and produces an unsigned bundle.
+# Without them the bundle builds unsigned, which Play will reject.
 
 on:
   push:
@@ -41,30 +43,55 @@ jobs:
         if: github.event.inputs.versionCode != ''
         run: |
           sed -i "s/versionCode .*/versionCode ${{ github.event.inputs.versionCode }}/" android/app/build.gradle
+          grep -n "versionCode" android/app/build.gradle
 
       - name: Decode keystore
-        if: env.KEYSTORE_BASE64 != ''
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::No KEYSTORE_BASE64 secret. Building UNSIGNED — Play will reject this bundle."
+            exit 0
+          fi
           echo "$KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
-          cat > android/keystore.properties <<EOF
-          storeFile=upload-keystore.jks
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
+          printf 'storeFile=upload-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > android/keystore.properties
+          echo "Keystore written ($(stat -c%s android/upload-keystore.jks) bytes)"
 
       - name: Build release bundle
         working-directory: android
-        run: ./gradlew bundleRelease --no-daemon
+        run: ./gradlew bundleRelease --no-daemon --stacktrace
 
-      - name: Upload .aab artifact
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Report signing state
+        run: |
+          AAB=$(find android/app/build/outputs/bundle/release -name '*.aab' | head -1)
+          echo "Bundle: $AAB ($(du -h "$AAB" | cut -f1))"
+          if unzip -l "$AAB" | grep -q "META-INF/.*\.RSA\|META-INF/.*\.EC"; then
+            echo "Signed — ready to upload to Play Console."
+          else
+            echo "::warning::Bundle is UNSIGNED. Add the four keystore secrets and re-run."
+          fi
+
+      - name: Upload bundle
         uses: actions/upload-artifact@v4
         with:
           name: piano-rush-aab
           path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: piano-rush-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
 
       - name: Clean up signing files
         if: always()
