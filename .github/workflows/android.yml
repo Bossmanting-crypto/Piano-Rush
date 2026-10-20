@@ -71,8 +71,17 @@ jobs:
             echo "::error::KEYSTORE_BASE64 is not valid base64 (${#CLEAN} chars). Delete the secret and paste the value again."
             exit 1
           fi
+          echo "::notice::KEYSTORE_PASSWORD ${#KEYSTORE_PASSWORD} chars, KEY_PASSWORD ${#KEY_PASSWORD} chars, KEY_ALIAS ${#KEY_ALIAS} chars"
+          if ! keytool -list -keystore android/upload-keystore.jks -storepass "$KEYSTORE_PASSWORD" > /dev/null 2>&1; then
+            echo "::error::KEYSTORE_PASSWORD is wrong (${#KEYSTORE_PASSWORD} chars). Paste just the password, nothing else."
+            exit 1
+          fi
           if ! keytool -list -keystore android/upload-keystore.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null 2>&1; then
-            echo "::error::Keystore decoded ($(stat -c%s android/upload-keystore.jks) bytes) but could not be opened with KEYSTORE_PASSWORD / KEY_ALIAS. Re-check those two secrets."
+            echo "::error::KEY_ALIAS is wrong (${#KEY_ALIAS} chars). It should be exactly: upload"
+            exit 1
+          fi
+          if [ "$KEY_PASSWORD" != "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::KEY_PASSWORD (${#KEY_PASSWORD} chars) differs from KEYSTORE_PASSWORD. Both should be the same password."
             exit 1
           fi
           printf 'storeFile=upload-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
