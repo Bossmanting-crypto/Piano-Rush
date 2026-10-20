@@ -80,8 +80,10 @@ jobs:
             echo "::error::KEY_ALIAS is wrong (${#KEY_ALIAS} chars). It should be exactly: upload"
             exit 1
           fi
+          # PKCS12 keys use the store password; fall back to it if KEY_PASSWORD is unset
+          if [ -z "$KEY_PASSWORD" ]; then KEY_PASSWORD="$KEYSTORE_PASSWORD"; fi
           if [ "$KEY_PASSWORD" != "$KEYSTORE_PASSWORD" ]; then
-            echo "::error::KEY_PASSWORD (${#KEY_PASSWORD} chars) differs from KEYSTORE_PASSWORD. Both should be the same password."
+            echo "::error::KEY_PASSWORD (${#KEY_PASSWORD} chars) differs from KEYSTORE_PASSWORD. Both should be the same password, or delete KEY_PASSWORD."
             exit 1
           fi
           printf 'storeFile=upload-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
