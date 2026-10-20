@@ -1,7 +1,7 @@
 {
   "name": "piano-rush",
   "version": "1.0.0",
-  "description": "Piano Rush \u2014 tap-the-tiles rhythm game",
+  "description": "Piano Rush — tap-the-tiles rhythm game",
   "main": "index.js",
   "scripts": {
     "sync": "cap sync android",
@@ -18,5 +18,8 @@
     "@capacitor/cli": "^8.5.3",
     "@capacitor/core": "^8.5.3"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
 }
