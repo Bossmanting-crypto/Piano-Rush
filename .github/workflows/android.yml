@@ -92,7 +92,12 @@ jobs:
 
       - name: Build release bundle
         working-directory: android
-        run: ./gradlew bundleRelease --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          if ! ./gradlew bundleRelease --no-daemon --stacktrace 2>&1 | tee gradle-release.log; then
+            grep -A6 "What went wrong" gradle-release.log | head -12 | sed 's/^/::error::/' || true
+            exit 1
+          fi
 
       - name: Build debug APK
         working-directory: android
