@@ -64,7 +64,12 @@ jobs:
             echo "::warning::No KEYSTORE_BASE64 secret. Building UNSIGNED — Play will reject this bundle."
             exit 0
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
+          # Strip spaces/CR/newlines that sneak in when pasting into the GitHub UI
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n\t' | base64 -di > android/upload-keystore.jks
+          if ! keytool -list -keystore android/upload-keystore.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null 2>&1; then
+            echo "::error::Keystore decoded ($(stat -c%s android/upload-keystore.jks) bytes) but could not be opened with KEYSTORE_PASSWORD / KEY_ALIAS. Re-check those two secrets."
+            exit 1
+          fi
           printf 'storeFile=upload-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
             "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > android/keystore.properties
           echo "Keystore written ($(stat -c%s android/upload-keystore.jks) bytes)"
